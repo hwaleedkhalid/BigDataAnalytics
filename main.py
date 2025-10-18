@@ -1,83 +1,88 @@
-import pandas as pd
-import io
 from hdfs import InsecureClient
 
-# Connect to HDFS
+
 client = InsecureClient('http://localhost:9870', user='root')
 
-# HDFS file path
-hdfs_dir = '/user/test'
-hdfs_path = f'{hdfs_dir}/my_data.parquet'
 
-# Create HDFS directory if not exists
-if not client.status(hdfs_dir, strict=False):
-    client.makedirs(hdfs_dir)
-
-# CREATE: Write DataFrame to HDFS as Parquet
-def create_parquet_file():
-    df = pd.DataFrame({
-        'id': [1, 2, 3],
-        'name': ['Ali', 'Sara', 'John']
-    })
-    
-    buffer = io.BytesIO()
-    df.to_parquet(buffer, engine='pyarrow')
-    buffer.seek(0)
-
-    with client.write(hdfs_path, overwrite=True) as writer:
-        writer.write(buffer.read())
-    
-    print(f"✅ [CREATE] Wrote Parquet file to: {hdfs_path}")
-
-# READ: Read Parquet file from HDFS
-def read_parquet_file():
+def create_file(hdfs_path, local_content):
     try:
-        with client.read(hdfs_path) as reader:
-            buffer = io.BytesIO(reader.read())
-            df = pd.read_parquet(buffer, engine='pyarrow')
-        print(f"📖 [READ] Content of {hdfs_path}:\n{df}")
-        return df
+        with client.write(hdfs_path, encoding='utf-8', overwrite=True) as writer:
+            writer.write(local_content)
+        print(f" [CREATE] Successfully created file: {hdfs_path}")
     except Exception as e:
-        print(f"❌ [READ] Failed: {e}")
+        print(f" [CREATE] Error creating file: {e}")
 
-# UPDATE: Add new rows and overwrite Parquet file
-def update_parquet_file():
+
+def read_file(hdfs_path):
     try:
-        df_existing = read_parquet_file()
-        df_new = pd.DataFrame({
-            'id': [4, 5],
-            'name': ['Aisha', 'Zain']
-        })
-        df_updated = pd.concat([df_existing, df_new], ignore_index=True)
-
-        buffer = io.BytesIO()
-        df_updated.to_parquet(buffer, engine='pyarrow')
-        buffer.seek(0)
-
-        with client.write(hdfs_path, overwrite=True) as writer:
-            writer.write(buffer.read())
-
-        print(f"🔄 [UPDATE] Appended new data and updated file.")
+        with client.read(hdfs_path, encoding='utf-8') as reader:
+            content = reader.read()
+        print(f" [READ] Content of {hdfs_path}:\n---\n{content}\n---")
+        return content
     except Exception as e:
-        print(f"❌ [UPDATE] Failed: {e}")
+        print(f"  [READ] Error reading file: {e}")
+        return None
 
-# DELETE: Delete Parquet file from HDFS
-def delete_parquet_file():
+def append_to_file(hdfs_path, local_content):
+
+    try:
+        with client.write(hdfs_path, encoding='utf-8', append=True) as writer:
+            writer.write(local_content)
+        print(f" [UPDATE] Successfully appended to file: {hdfs_path}")
+    except Exception as e:
+        print(f"  [UPDATE] Error appending to file: {e}")
+
+def delete_file(hdfs_path):
     try:
         if client.status(hdfs_path, strict=False):
             client.delete(hdfs_path)
-            print(f"🗑️ [DELETE] Deleted: {hdfs_path}")
+            print(f" [DELETE] Successfully deleted file: {hdfs_path}")
         else:
-            print(f"⚠️ [DELETE] File not found.")
+            print(f" [DELETE] File not found, nothing to delete: {hdfs_path}")
     except Exception as e:
-        print(f"❌ [DELETE] Failed: {e}")
+        print(f"  [DELETE] Error deleting file: {e}")
 
-# --- Main Execution ---
+def list_files(hdfs_path):
+    try:
+        files = client.list(hdfs_path)
+        print(f" [LIST] Files in '{hdfs_path}': {files}")
+        return files
+    except Exception as e:
+        print(f"  [LIST] Error listing files: {e}")
+        return []
+
+
 if __name__ == "__main__":
-    print("\n--- HDFS Parquet CRUD Operations ---")
+    
+    hdfs_dir = '/user/test'
+    hdfs_filepath = f"{hdfs_dir}/my_test_file.txt"
+    
+    print("--- Starting HDFS CRUD Operations ---")
+    
+    
+    if client.status(hdfs_dir, strict=False):
+       client.delete(hdfs_dir, recursive=True)
+       print(f" Cleaned up existing directory: {hdfs_dir}")
+    client.makedirs(hdfs_dir)
 
-    create_parquet_file()   # Step 1: Create
-    read_parquet_file()     # Step 2: Read
-    update_parquet_file()   # Step 3: Update (Append + Overwrite)
-    read_parquet_file()     # Step 4: Read again to confirm update
-    delete_parquet_file()   # Step 5: Delete
+
+    list_files(hdfs_dir)
+
+
+    initial_content = "Hello from Lahore!\nThis is the first line."
+    create_file(hdfs_filepath, initial_content)
+
+    read_file(hdfs_filepath)
+
+    content_to_append = "\nThis is a new line, added on a Thursday night."
+    append_to_file(hdfs_filepath, content_to_append)
+
+    read_file(hdfs_filepath)
+    
+    list_files(hdfs_dir)
+
+    delete_file(hdfs_filepath)
+    
+    list_files(hdfs_dir)
+
+    print("\n--- HDFS CRUD Operations Complete ---")

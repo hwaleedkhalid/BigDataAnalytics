@@ -1,19 +1,31 @@
-version: "3.8"
+version: '3'
 
 services:
-  mongo:
-    image: mongo:${MONGO_VERSION}
-    container_name: ${MONGO_CONT_NAME}
-    restart: always
+  namenode:
+    image: q
+    container_name: namenode
     ports:
-      - "${MONGO_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      - "9870:9870"
+      - "9000:9000"
     volumes:
-      - ${MONGO_VOLUME}:/data/db
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
 
-
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    ports:
+      - "9864:9864"
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
 
 volumes:
-  mongo_data:
+  hadoop_namenode:
+  hadoop_datanode:
